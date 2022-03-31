@@ -12,5 +12,5 @@ add_llvm_component_library(LLVMABPInfo
   ABP
 )
 
-add_dependencies(LLVMABPInfo)
+# add_dependencies(LLVMABPInfo ABPCommonTableGen)
 

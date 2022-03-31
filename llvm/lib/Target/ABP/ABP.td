@@ -18,62 +18,48 @@ include "llvm/Target/Target.td"
 // AVR Device Definitions
 //===---------------------------------------------------------------------===//
 
-include "AVRDevices.td"
+//TODO ABP
 
 //===---------------------------------------------------------------------===//
 // Register File Description
 //===---------------------------------------------------------------------===//
 
-include "AVRRegisterInfo.td"
+include "ABPRegisterInfo.td"
 
 //===---------------------------------------------------------------------===//
 // Instruction Descriptions
 //===---------------------------------------------------------------------===//
 
-include "AVRInstrInfo.td"
+include "ABPInstrInfo.td"
 
-def AVRInstrInfo : InstrInfo;
+def ABPInstrInfo : InstrInfo;
 
 //===---------------------------------------------------------------------===//
 // Calling Conventions
 //===---------------------------------------------------------------------===//
 
-include "AVRCallingConv.td"
+//TODO ABP
 
 //===---------------------------------------------------------------------===//
 // Assembly Printers
 //===---------------------------------------------------------------------===//
 
-def AVRAsmWriter : AsmWriter {
-  string AsmWriterClassName = "InstPrinter";
-  bit isMCAsmWriter = 1;
-}
+//TODO ABP
 
 //===---------------------------------------------------------------------===//
 // Assembly Parsers
 //===---------------------------------------------------------------------===//
 
-def AVRAsmParser : AsmParser {
+def ABPAsmParser : AsmParser {
   let ShouldEmitMatchRegisterName = 1;
-  let ShouldEmitMatchRegisterAltName = 1;
-}
-
-def AVRAsmParserVariant : AsmParserVariant {
-  int Variant = 0;
-
-  // Recognize hard coded registers.
-  string RegisterPrefix = "$";
-  string TokenizingCharacters = "+";
+  let ShouldEmitMatchRegisterAltName = 1; //?? what is this
 }
 
 //===---------------------------------------------------------------------===//
 // Target Declaration
 //===---------------------------------------------------------------------===//
 
-def AVR : Target {
-  let InstructionSet = AVRInstrInfo;
-  let AssemblyWriters = [AVRAsmWriter];
-
-  let AssemblyParsers = [AVRAsmParser];
-  let AssemblyParserVariants = [AVRAsmParserVariant];
+def ABP : Target {
+  let InstructionSet = ABPInstrInfo;
+  let AssemblyParsers = [ABPAsmParser];
 }

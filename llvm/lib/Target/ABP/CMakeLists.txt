@@ -2,21 +2,14 @@ add_llvm_component_group(ABP)
 
 set(LLVM_TARGET_DEFINITIONS ABP.td)
 
-add_llvm_target(ABPCodeGen
-  ABPAsmPrinter.cpp
-  AVRExpandPseudoInsts.cpp
-  AVRFrameLowering.cpp
-  AVRInstrInfo.cpp
-  AVRISelDAGToDAG.cpp
-  AVRISelLowering.cpp
-  AVRMCInstLower.cpp
-  AVRRelaxMemOperations.cpp
-  AVRRegisterInfo.cpp
-  AVRShiftExpand.cpp
-  AVRSubtarget.cpp
-  AVRTargetMachine.cpp
-  AVRTargetObjectFile.cpp
+tablegen(LLVM ABPGenAsmMatcher.inc -gen-asm-matcher)
+tablegen(LLVM ABPGenRegisterInfo.inc -gen-register-info)
+tablegen(LLVM ABPGenInstrInfo.inc -gen-instr-info)
 
+
+add_public_tablegen_target(ABPCommonTableGen)
+
+add_llvm_target(ABPCodeGen
   DEPENDS
   intrinsics_gen
 
@@ -25,9 +18,9 @@ add_llvm_target(ABPCodeGen
   CodeGen
   Core
   MC
-  AVRDesc
-  AVRInfo
-  SelectionDAG
+  ABPDesc
+  ABPInfo
+  # SelectionDAG
   Support
   Target
 
@@ -35,6 +28,9 @@ add_llvm_target(ABPCodeGen
   ABP
 )
 
-add_subdirectory(AsmParser)
-add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
+
+# MC not ported yet
+# add_subdirectory(MCTargetDesc)
+
+add_subdirectory(AsmParser)

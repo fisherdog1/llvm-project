@@ -1,4 +1,4 @@
-//===-- AVR.h - Top-level interface for AVR representation ------*- C++ -*-===//
+//===-- ABP.h - Top-level interface for ABP representation ------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains the entry points for global functions defined in the LLVM
-// AVR back-end.
+// ABP back-end.
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,24 +22,25 @@ namespace llvm {
 class ABPTargetMachine;
 class FunctionPass;
 
-FunctionPass *createAVRISelDag(AVRTargetMachine &TM,
+FunctionPass *createABPISelDag(ABPTargetMachine &TM,
                                CodeGenOpt::Level OptLevel);
-FunctionPass *createAVRExpandPseudoPass();
-FunctionPass *createAVRFrameAnalyzerPass();
-FunctionPass *createAVRRelaxMemPass();
-FunctionPass *createAVRBranchSelectionPass();
+FunctionPass *createABPExpandPseudoPass();
+FunctionPass *createABPFrameAnalyzerPass();
+FunctionPass *createABPRelaxMemPass();
+FunctionPass *createABPBranchSelectionPass();
 
-void initializeAVRShiftExpandPass(PassRegistry &);
-void initializeAVRExpandPseudoPass(PassRegistry &);
-void initializeAVRRelaxMemPass(PassRegistry &);
+void initializeABPShiftExpandPass(PassRegistry &);
+void initializeABPExpandPseudoPass(PassRegistry &);
+void initializeABPRelaxMemPass(PassRegistry &);
 
-/// Contains the AVR backend.
+/// Contains the ABP backend.
 namespace ABP {
 
-/// An integer that identifies all of the supported AVR address spaces.
+/// An integer that identifies all of the supported ABP address spaces.
 enum AddressSpace {
   DataMemory,
   ProgramMemory,
+  NumAddrSpaces,
 };
 
 /// Checks if a given type is a pointer to program memory.
@@ -77,8 +78,8 @@ inline int getProgramMemoryBank(MemSDNode const *N) {
   return 1;
 }
 
-} // end of namespace AVR
+} // end of namespace ABP
 
 } // end namespace llvm
 
-#endif // LLVM_AVR_H
+#endif // LLVM_ABP_H
