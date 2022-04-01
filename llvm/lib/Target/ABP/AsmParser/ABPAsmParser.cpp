@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "ABP.h"
+#include "ABPRegisterInfo.h"
+#include "MCTargetDesc/ABPMCELFStreamer.h"
+#include "MCTargetDesc/ABPMCExpr.h"
+#include "MCTargetDesc/ABPMCTargetDesc.h"
 #include "TargetInfo/ABPTargetInfo.h"
 
 #include "llvm/ADT/APInt.h"
@@ -93,7 +97,7 @@ public:
 /// An parsed ABP assembly operand.
 class ABPOperand : public MCParsedAsmOperand {
   typedef MCParsedAsmOperand Base;
-  enum KindTy { k_Immediate, k_Register, k_Token } Kind;
+  enum KindTy { k_Immediate, k_Register, k_Token, k_Memri } Kind;
 
 public:
   ABPOperand(StringRef Tok, SMLoc const &S)
@@ -103,6 +107,10 @@ public:
   ABPOperand(MCExpr const *Imm, SMLoc const &S, SMLoc const &E)
       : Kind(k_Immediate), RegImm({0, Imm}), Start(S), End(E) {}
 
+  struct RegisterImmediate {
+    unsigned Reg;
+    MCExpr const *Imm;
+  };
   union {
     StringRef Tok;
     RegisterImmediate RegImm;
@@ -136,13 +144,53 @@ public:
     addExpr(Inst, Expr);
   }
 
+  /// Adds the contained reg+imm operand to an instruction.
+  void addMemriOperands(MCInst &Inst, unsigned N) const {
+    assert(Kind == k_Memri && "Unexpected operand kind");
+    assert(N == 2 && "Invalid number of operands");
+
+    Inst.addOperand(MCOperand::createReg(getReg()));
+    addExpr(Inst, getImm());
+  }
+
+  void addImmCom8Operands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    // The operand is actually a imm8, but we have its bitwise
+    // negation in the assembly source, so twiddle it here.
+    const auto *CE = cast<MCConstantExpr>(getImm());
+    Inst.addOperand(MCOperand::createImm(~(uint8_t)CE->getValue()));
+  }
+
+  bool isImmCom8() const {
+    if (!isImm())
+      return false;
+    const auto *CE = dyn_cast<MCConstantExpr>(getImm());
+    if (!CE)
+      return false;
+    int64_t Value = CE->getValue();
+    return isUInt<8>(Value);
+  }
+
   bool isReg() const override { return Kind == k_Register; }
   bool isImm() const override { return Kind == k_Immediate; }
   bool isToken() const override { return Kind == k_Token; }
+  bool isMem() const override { return Kind == k_Memri; }
+  bool isMemri() const { return Kind == k_Memri; }
 
   StringRef getToken() const {
     assert(Kind == k_Token && "Invalid access!");
     return Tok;
+  }
+
+  unsigned getReg() const override {
+    assert((Kind == k_Register || Kind == k_Memri) && "Invalid access!");
+
+    return RegImm.Reg;
+  }
+
+  const MCExpr *getImm() const {
+    assert((Kind == k_Immediate || Kind == k_Memri) && "Invalid access!");
+    return RegImm.Imm;
   }
 
   static std::unique_ptr<ABPOperand> CreateToken(StringRef Str, SMLoc S) {
@@ -174,6 +222,11 @@ public:
     RegImm = {0, Ex};
   }
 
+  void makeMemri(unsigned RegNo, MCExpr const *Imm) {
+    Kind = k_Memri;
+    RegImm = {RegNo, Imm};
+  }
+
   SMLoc getStartLoc() const override { return Start; }
   SMLoc getEndLoc() const override { return End; }
 
@@ -188,12 +241,18 @@ public:
     case k_Immediate:
       O << "Immediate: \"" << *getImm() << "\"";
       break;
+    case k_Memri: {
+      // only manually print the size for non-negative values,
+      // as the sign is inserted automatically.
+      O << "Memri: \"" << getReg() << '+' << *getImm() << "\"";
+      break;
+    }
     }
     O << "\n";
   }
 };
 
-} // end anonymous namespace.
+}
 
 // Auto-generated Match Functions
 
@@ -475,37 +534,6 @@ bool ABPAsmParser::parseOperand(OperandVector &Operands) {
   return true;
 }
 
-OperandMatchResultTy ABPAsmParser::parseMemriOperand(OperandVector &Operands) {
-  LLVM_DEBUG(dbgs() << "parseMemriOperand()\n");
-
-  SMLoc E, S;
-  MCExpr const *Expression;
-  int RegNo;
-
-  // Parse register.
-  {
-    RegNo = parseRegister();
-
-    if (RegNo == ABP::NoRegister)
-      return MatchOperand_ParseFail;
-
-    S = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-    Parser.Lex(); // Eat register token.
-  }
-
-  // Parse immediate;
-  {
-    if (getParser().parseExpression(Expression))
-      return MatchOperand_ParseFail;
-
-    E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-  }
-
-  Operands.push_back(ABPOperand::CreateMemri(RegNo, Expression, S, E));
-
-  return MatchOperand_Success;
-}
-
 bool ABPAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
                                  SMLoc &EndLoc) {
   StartLoc = Parser.getTok().getLoc();
@@ -538,35 +566,32 @@ void ABPAsmParser::eatComma() {
 bool ABPAsmParser::ParseInstruction(ParseInstructionInfo &Info,
                                     StringRef Mnemonic, SMLoc NameLoc,
                                     OperandVector &Operands) {
+  // First operand is token for instruction
   Operands.push_back(ABPOperand::CreateToken(Mnemonic, NameLoc));
 
-  bool first = true;
-  while (getLexer().isNot(AsmToken::EndOfStatement)) {
-    if (!first)
-      eatComma();
+  // If there are no more operands, then finish
+  if (getLexer().is(AsmToken::EndOfStatement))
+    return false;
 
-    first = false;
+  // Parse first operand
+  if (parseOperand(Operands))
+    return true;
 
-    auto MatchResult = MatchOperandParserImpl(Operands, Mnemonic);
+  // Parse until end of statement, consuming commas between operands
+  while (getLexer().isNot(AsmToken::EndOfStatement) &&
+        getLexer().is(AsmToken::Comma)) {
+    // Consume comma token
+    getLexer().Lex();
 
-    if (MatchResult == MatchOperand_Success) {
-      continue;
-    }
-
-    if (MatchResult == MatchOperand_ParseFail) {
-      SMLoc Loc = getLexer().getLoc();
-      Parser.eatToEndOfStatement();
-
-      return Error(Loc, "failed to parse register and immediate pair");
-    }
-
-    if (parseOperand(Operands)) {
-      SMLoc Loc = getLexer().getLoc();
-      Parser.eatToEndOfStatement();
-      return Error(Loc, "unexpected token in argument list");
-    }
+    // Parse next operand
+    if(parseOperand(Operands))
+      return true;
   }
-  Parser.Lex(); // Consume the EndOfStatement
+
+  if (getLexer().isNot(AsmToken::EndOfStatement))
+    return Error(getLexer().getTok().getLoc(),
+                 "unexpected token in operand list");
+
   return false;
 }
 
@@ -655,18 +680,6 @@ unsigned ABPAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
       // Let the other quirks try their magic.
     }
   }
-
-  if (Op.isReg()) {
-    // If the instruction uses a register pair but we got a single, lower
-    // register we perform a "class cast".
-    if (isSubclass(Expected, MCK_DREGS)) {
-      unsigned correspondingDREG = Op.getReg();
-
-      if (correspondingDREG != ABP::NoRegister) {
-        Op.makeReg(correspondingDREG);
-        return validateOperandClass(Op, Expected);
-      }
-    }
-  }
+	
   return Match_InvalidOperand;
 }

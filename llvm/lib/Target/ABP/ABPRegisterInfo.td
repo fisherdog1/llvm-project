@@ -27,6 +27,7 @@ let Namespace = "ABP" in {
   def sub_hi : SubRegIndex<8, 8>;
 }
 
+
 let Namespace = "ABP" in { def ptr : RegAltNameIndex; }
 
 //===----------------------------------------------------------------------===//
@@ -54,7 +55,7 @@ def SPL : ABPReg<17, "SPL">, DwarfRegNum<[17]>;
 
 let SubRegIndices = [sub_lo, sub_hi], CoveredBySubRegs = 1 in {
   // 16 bit GPR pairs.
-  def SP : ABPReg<32, "SP", [SPL, SPH]>, DwarfRegNum<[16]>;
+  def SP : ABPReg<32, "SP", [SPH, SPL]>, DwarfRegNum<[16]>;
 
   def R8R9 : ABPReg<8, "A", [R8, R9]>, DwarfRegNum<[8]>;
   def R10R11 : ABPReg<10, "B", [R10, R11]>, DwarfRegNum<[10]>;

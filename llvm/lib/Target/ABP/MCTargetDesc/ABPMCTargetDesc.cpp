@@ -43,11 +43,6 @@ static MCRegisterInfo *createABPMCRegisterInfo(const Triple &TT) {
   return X;
 }
 
-static MCSubtargetInfo *createABPMCSubtargetInfo(const Triple &TT,
-                                                 StringRef CPU, StringRef FS) {
-  return createABPMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
-}
-
 static MCInstPrinter *createABPMCInstPrinter(const Triple &T,
                                              unsigned SyntaxVariant,
                                              const MCAsmInfo &MAI,

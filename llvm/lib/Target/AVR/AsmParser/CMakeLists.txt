@@ -11,3 +11,5 @@ add_llvm_component_library(LLVMAVRAsmParser
   ADD_TO_COMPONENT
   AVR
 )
+
+add_dependencies(LLVMAVRDesc AVRCommonTableGen)
